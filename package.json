@@ -1,0 +1,18 @@
+{
+  "name": "syntax-source",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/main/api.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "emk": "^1.7.2"
+  },
+  "dependencies": {
+    "js-yaml": "^3.13.1"
+  }
+}

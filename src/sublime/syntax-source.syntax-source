@@ -1,0 +1,118 @@
+%YAML 1.2
+---
+name: Syntax Source Definition (YAML)
+scope: source.yaml.syntax-source
+file_extensions: 
+  - syntax-source
+
+lookaheads:
+  keySeparator: \s*:(\s|$)
+
+contexts:
+
+  comment:
+    - meta_include_prototype: false
+    - include: YAML.sublime-syntax#comment
+
+  prototype:
+    - include: comment
+
+  eol:
+    - match: $
+      pop: true
+
+  yaml:
+    - meta_include_prototype: false
+    - include: YAML.sublime-syntax#property
+    - include: scope:source.yaml
+
+  main:
+    - goto: header
+
+  header:
+    - meta_content_scope: string.unquoted.plain.out.yaml
+    - match: (name){{keySeparator_LOOKAHEAD}}
+      scope: entity.name.tag.name.SYNTAX
+      set: [string, keyValue]
+    - match: (first_line_match){{keySeparator_LOOKAHEAD}}
+      scope: entity.name.tag.first-line-match.SYNTAX
+      set: [regexp, keyValue]
+    - match: (scope){{keySeparator_LOOKAHEAD}}
+      scope: storage.type.scope.global.SYNTAX
+      set: [scopes, keyValue]
+    - match: (file_extensions){{keySeparator_LOOKAHEAD}}
+      scope: entity.name.tag.file-extensions.SYNTAX
+      set: [stringArray, keyValue]
+    - match: (hidden){{keySeparator_LOOKAHEAD}}
+      scope: storage.modifier.hidden.SYNTAX
+      set: [boolean, keyValue]
+    - match: (extends){{keySeparator_LOOKAHEAD}}
+      scope: storage.modifier.extends.SYNTAX
+      set: [string, keyValue]
+    - match: (lookaheads)(?:(\.)(i))?{{keySeparator_LOOKAHEAD}}
+      captures:
+        1: keyword.control.flow.lookaheads.SYNTAX
+        2: keyword.operator.key-modifier.SYNTAX
+        3: keyword.other.modifier.i.SYNTAX
+      set: [lookaheads, keyValue]
+    - match: (variables)(?:(\.)(i))?{{keySeparator_LOOKAHEAD}}
+      captures:
+        1: keyword.control.flow.variables.SYNTAX
+        2: keyword.operator.key-modifier.SYNTAX
+        3: keyword.other.modifier.i.SYNTAX
+      set: [variables, keyValue]
+    - match: (contexts){{keySeparator_LOOKAHEAD}}
+      captures:
+        1: keyword.control.flow.contexts.SYNTAX
+        2: keyword.operator.key-modifier.SYNTAX
+        3: keyword.other.modifier.i.SYNTAX
+      set: [contexts, keyValue]
+    - include: yaml
+
+  keyValue:
+    - match: ':'
+      scope: punctuation.separator.key-value.yaml
+      pop: true
+
+  boolean:
+    - words.exact:
+        - 'true'
+        - 'yes'
+        - 'false'
+        - 'no'
+      boundary: \s+#|\s*$
+      scope: constant.language.boolean.yaml constant.language.boolean.WORD.SYNTAX
+      set: eol
+
+  string:
+    - include: YAML.sublime-syntax#flow-scalar-plain-out
+    - match: $
+      pop: true
+
+  scopes:
+    - include: string
+
+  regexp:
+    - match: ''
+
+  stringArray:
+    - include: YAML.sublime-syntax#flow-sequence
+    - match: ^
+      set: stringArrayItem+
+
+  stringArrayItem:
+    - match: -\s*
+      scope: punctuation.definition.block.sequence.item.yaml
+      push: string
+
+  struct:
+    - match: ''
+
+  lookaheads:
+    - match: ''
+
+  variables:
+    - match: ''
+
+  contexts:
+    - match: ''
