@@ -666,6 +666,7 @@ const H_QUANTIFIERS = {
 	// zero or more
 	'*'(k_syntax, s_state) {
 		let s_state_zero_more = `${s_state}*`;
+		let s_state_existential = `${s_state}?`;
 
 		// state not yet exists; add it
 		if(!(s_state_zero_more in k_syntax.contexts)) {
@@ -673,20 +674,9 @@ const H_QUANTIFIERS = {
 				{
 					match: `{{${s_state}_LOOKAHEAD}}`,
 
-					// push an anonymous context that includes the state
-					push: [
-						// need this so that resolver does not make state throw
-						{
-							include: s_state,
-						},
-						{
-							include: '_OTHERWISE_POP',
-						},
-					],
+					// push existential quantifier context that includes the state so resolver does not make it throw
+					push: s_state_existential,
 				},
-				// {
-				// 	include: s_state,
-				// },
 				{
 					include: '_OTHERWISE_POP',
 				},
@@ -694,6 +684,11 @@ const H_QUANTIFIERS = {
 
 			// add lookaheads to context
 			k_context.lookaheads = [...k_syntax.contexts[s_state].lookaheads];
+		}
+
+		// existential quantifier doesn't exist yet
+		if(!(s_state_existential in k_syntax.contexts)) {
+			H_QUANTIFIERS['?'](k_syntax, s_state);
 		}
 	},
 
