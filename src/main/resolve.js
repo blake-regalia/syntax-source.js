@@ -1,5 +1,6 @@
 
-const R_REFERENCE = /\{\{([A-Za-z0-9_]+)\}\}/g;
+const R_REFERENCE = /(?<=(?:^|[^\\])(?:\\\\)*)\{\{([A-Za-z0-9_]+)\}\}/g;
+const R_LOOKAHEAD_ASSERTION = /(^|[^\\])\(\?=/g;
 
 const search_reachable = (h_defined, a_search, as_reachable=new Set()) => {
 	for(let s_search of a_search) {
@@ -33,6 +34,10 @@ const generate_lookahead = (a_lookaheads) => {
 				a_local.ignore = true;
 				a_union.push(a_local);
 			}
+			// compatible but first
+			else if(!a_local.length && 1 === a_union.length) {
+				a_local.ignore = true;
+			}
 
 			xm_ignore_prev = 2;
 		}
@@ -51,7 +56,10 @@ const generate_lookahead = (a_lookaheads) => {
 
 		// simple regex
 		if(g_item.regex) {
-			a_local.push(g_item.regex);
+			// terrible hack to prevent multiple lookahead assertions
+			let s_regex = g_item.regex.replace(R_LOOKAHEAD_ASSERTION, '$1(?:');
+
+			a_local.push(s_regex);
 		}
 		// dependent on other lookahead
 		else if(g_item.lookahead) {
@@ -100,7 +108,7 @@ const flatten_variable = (g_variable) => {
 };
 
 const flatten_lookahead = (g_lookahead) => {
-	let s_regex = '(?=';
+	let s_regex = `${g_lookahead.ignore? '(?i)': ''}(?=`;
 
 	// simple regex
 	if(g_lookahead.regex) {
@@ -108,13 +116,111 @@ const flatten_lookahead = (g_lookahead) => {
 	}
 	// composite
 	else if(g_lookahead.lookaheads) {
-		return `${s_regex}${g_lookahead.lookaheads.map(s => `{{${s}_LOOKAHEAD}}`).join('|')}`;
+		return `${s_regex}${g_lookahead.lookaheads.map(s => `{{${s}_LOOKAHEAD}}`).join('|')})`;
 	}
 	// something else
 	else {
 		throw new Error(`unexpected variable structure: ${g_lookahead}`);
 	}
 };
+
+const define_variable = (h_contexts, h_referenced_vars, as_reachable_vars, h_variables_out, h_dependent_vars, s_variable) => {
+	let s_regex;
+
+	// variable is not defined
+	if(!h_variables_out[s_variable]) {
+		// variable is a lookahead
+		if(s_variable.endsWith('_LOOKAHEAD')) {
+			let si_context = s_variable.slice(0, -'_LOOKAHEAD'.length);
+
+			// context does not exist
+			if(!(si_context in h_contexts)) {
+				throw new Error(`cannot generate lookahead for variable '${s_variable}' since no such context exists '${si_context}'`);
+			}
+
+			// context has lookaheads
+			let a_lookaheads = h_contexts[si_context].lookaheads;
+			if(a_lookaheads.length) {
+				// generate lookahead variable
+				s_regex = h_variables_out[s_variable] = generate_lookahead(a_lookaheads);
+			}
+			// no lookaheads
+			else {
+				let s_ctxs_used = '';
+
+				// each defined context
+				for(let [si_ctx, a_vars] of Object.entries(h_referenced_vars)) {
+					// variable referenced in this context
+					if(a_vars.includes(s_variable)) {
+						s_ctxs_used += '\n\t'+si_ctx;
+					}
+				}
+
+				throw new Error(`lookahead variable '${s_variable}' is not defined, nor can it be generated from context\nUsed in the following contexts:${s_ctxs_used}`);
+			}
+		}
+		else {
+			let s_ctxs_used = '';
+
+			// each defined context
+			for(let [si_ctx, a_vars] of Object.entries(h_referenced_vars)) {
+				// variable referenced in this context
+				if(a_vars.includes(s_variable)) {
+					s_ctxs_used += '\n\t'+si_ctx;
+				}
+			}
+
+			throw new Error(`variable '${s_variable}' is not defined\nUsed in the following contexts:${s_ctxs_used}`);
+		}
+	}
+	// variable is already defined
+	else {
+		s_regex = h_variables_out[s_variable];
+	}
+
+	// match its regex (save to dependents)
+	let a_references = h_dependent_vars[s_variable] = (s_regex.match(R_REFERENCE) || [])
+		.map(s => s.slice(2, -2));
+
+	// check all references
+	for(let s_ref of a_references) {
+		// they are reachable now
+		as_reachable_vars.add(s_ref);
+
+		// not defined; define it
+		if(!(s_ref in h_variables_out)) {
+			define_variable(h_contexts, h_referenced_vars, as_reachable_vars, h_variables_out, h_dependent_vars, s_ref);
+		}
+	}
+};
+
+// const reduce_regexp = () => {
+
+// };
+
+const check_dependents = (h_dependent_vars, a_path, nl_max_path=Infinity,  a_excessive_paths=[]) => {
+	let si_variable = a_path[a_path.length-1];
+	let a_deps = h_dependent_vars[si_variable];
+
+	// has dependencies
+	if(a_deps.length) {
+		for(let s_dep of a_deps) {
+			if(a_path.includes(s_dep)) {
+				throw new Error(`dependency cycle detected at '${a_path.join(' > ')}'`);
+			}
+			else {
+				check_dependents(h_dependent_vars, [...a_path, s_dep], nl_max_path, a_excessive_paths);
+			}
+		}
+	}
+	// no more deps (end of path) and excessive; add to list
+	else if(a_path.length > nl_max_path) {
+		a_excessive_paths.push(a_path);
+	}
+
+	return a_excessive_paths;
+};
+
 
 const resolve = (k_syntax) => {
 	let {
@@ -338,6 +444,7 @@ const resolve = (k_syntax) => {
 
 	// deduce which variables are transitively reachable including via dependent variables
 	let as_reachable_vars;
+	let h_dependent_vars = {};
 	{
 		// deduce which variables are reachable from contexts
 		let as_root_reachable_vars;
@@ -355,23 +462,7 @@ const resolve = (k_syntax) => {
 		}
 
 		// from all defined variables, find variables referenced (i.e., dependent variables)
-		let h_dependent_vars = {};
 		{
-			// // each variable
-			// for(let [si_variable, g_variable] of Object.entries(h_variables)) {
-			// 	// variable has regex
-			// 	if(g_variable.regex) {
-			// 		let s_regex = g_variable.regex;
-
-			// 		h_dependent_vars[si_variable] = (s_regex.match(R_REFERENCE) || [])
-			// 			.map(s => s.slice(2, -2));
-			// 	}
-			// 	// variable is made up of others
-			// 	else {
-			// 		debugger;
-			// 	}
-			// }
-
 			// each variable
 			for(let [si_variable, s_regex] of Object.entries(h_variables_out)) {
 				// extract dependencies
@@ -389,34 +480,8 @@ const resolve = (k_syntax) => {
 	{
 		// each reachable variable
 		for(let s_variable of as_reachable_vars) {
-			// variable is not defined
-			if(!h_variables_out[s_variable]) {
-				// variable is a lookahead
-				if(s_variable.endsWith('_LOOKAHEAD')) {
-					let si_context = s_variable.slice(0, -'_LOOKAHEAD'.length);
-
-					// context has lookaheads
-					let a_lookaheads = h_contexts[si_context].lookaheads;
-					if(a_lookaheads.length) {
-						// generate lookahead variable
-						h_variables_out[s_variable] = generate_lookahead(a_lookaheads);
-					}
-					// no lookaheads
-					else {
-						let s_ctxs_used = '';
-
-						// each defined context
-						for(let [si_ctx, a_vars] of Object.entries(h_referenced_vars)) {
-							// variable referenced in this context
-							if(a_vars.includes(s_variable)) {
-								s_ctxs_used += '\n\t'+si_ctx;
-							}
-						}
-
-						throw new Error(`lookahead variable '${s_variable}' is not defined, nor can it be generated from context\nUsed in the following contexts:${s_ctxs_used}`);
-					}
-				}
-			}
+			// define it
+			define_variable(h_contexts, h_referenced_vars, as_reachable_vars, h_variables_out, h_dependent_vars, s_variable);
 		}
 	}
 
@@ -431,29 +496,67 @@ const resolve = (k_syntax) => {
 
 				// remove variable
 				delete h_variables_out[si_variable];
+				delete h_dependent_vars[si_variable];
 			}
 		}
 	}
 
-	// expand variables
+	// check for DAG and max reference depth
 	{
-		let h_expanded = k_syntax.expanded_variables = {};
-		for(let [si_variable, s_pattern] of Object.entries(h_variables_out)) {
-			h_expanded[si_variable] = s_pattern.replace(R_REFERENCE, (s_match, s_ref) => {
-				// ref not expanded yet
-				if(!(s_ref in h_expanded)) {
-					throw new Error(`variable '${s_ref}' referenced in ${k_syntax.path}#${si_variable} is out of reference order`);
-				}
+		const NL_MAX_PATH = 9;
 
-				return h_expanded[s_ref];
-			});
+		let a_excessive_paths = [];
+		for(let si_variable in h_dependent_vars) {
+			a_excessive_paths.push(...check_dependents(h_dependent_vars, [si_variable], NL_MAX_PATH));
 		}
 
-		// return h_expanded;
+		let h_expanded = {};
+		for(let a_path of a_excessive_paths) {
+			let nl_path = a_path.length;
+
+			for(let i_step=nl_path-1; i_step>=NL_MAX_PATH-1; i_step--) {
+				let si_dep = a_path[i_step];
+
+				// dependency not yet defined
+				if(!(si_dep in h_expanded)) {
+					h_expanded[si_dep] = h_variables_out[si_dep]
+						.replace(R_REFERENCE, (s_match, si_ref) => (
+							h_expanded[si_ref] || h_variables_out[si_ref]
+						).replace(R_LOOKAHEAD_ASSERTION, '$1(?:'));
+				}
+
+				// replace
+				h_variables_out[si_dep] = h_expanded[si_dep];
+			}
+		}
 	}
 
+	// // reduce redundant lookaheads
+	// {
+	// 	for(let si_variable of h_variables_out) {
+	// 		h_variables_out[si_variable] = reduce_regexp(h_variables_out[si_variable]);
+	// 	}
+	// }
 
-	// make sure every reference is defined
+	// // expand variables
+	// {
+	// 	let h_expanded = k_syntax.expanded_variables = {};
+	// 	for(let [si_variable, s_pattern] of Object.entries(h_variables_out)) {
+	// 		h_expanded[si_variable] = s_pattern.replace(R_REFERENCE, (s_match, s_ref) => {
+	// 			// ref not expanded yet
+	// 			if(!(s_ref in h_expanded)) {
+	// 				throw new Error(`variable '${s_ref}' referenced in ${k_syntax.path}#${si_variable} is out of reference order`);
+	// 			}
+
+	// 			return h_expanded[s_ref];
+	// 		});
+	// 	}
+
+	// 	// return h_expanded;
+	// }
+
+
+	// make sure every context reference is defined
 	{
 		for(let s_state in h_referenced_ctxs) {
 			// reference is not reachable; skip

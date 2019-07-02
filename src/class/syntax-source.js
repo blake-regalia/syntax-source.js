@@ -252,7 +252,7 @@ module.exports = class SyntaxSource {
 						_SOMETHING: '\\w+|\\S',
 						_ANYTHING_LOOKAHEAD: '(?=[\\S\\s])',
 						_WHITESPACE: '\\s+',
-						_KEYWORD_BOUNDARY: '[\\s{(\\[<*#$?^/="\'>\\])}]',
+						_WORD_BOUNDARY: '[\\s{(\\[<*#$?^/="\'>\\])}]',
 					}]),
 
 					...this.variables,

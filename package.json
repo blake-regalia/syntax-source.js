@@ -13,6 +13,8 @@
     "emk": "^1.7.2"
   },
   "dependencies": {
-    "js-yaml": "^3.13.1"
+    "js-yaml": "^3.13.1",
+    "regexp-to-ast": "^0.4.0",
+    "regexpp": "^2.0.1"
   }
 }

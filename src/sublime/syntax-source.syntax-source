@@ -8,16 +8,108 @@ file_extensions:
 lookaheads:
   keySeparator: \s*:(\s|$)
 
+  end_plain: |-
+    (?x:
+        (?=
+            \s* $
+          | \s+ \#
+          | \s* : (\s|$)
+        )
+      )
+
+variables:
+
+  c_indicator: '[-?:,\[\]{}#&*!|>''"%@`]'
+  c_flow_indicator: '[\[\]{},]'
+
+  ns_plain_first_plain_out: |-
+    (?x:
+        [^\s{{c_indicator}}]
+      | [?:-] \S
+    )
+
+  _flow_scalar_end_plain_out: |-
+    (?x:
+      (?=
+          \s* $
+        | \s+ \#
+        | \s* : (\s|$)
+      )
+    )
+
+  _flow_scalar_end_plain_in: |-
+    (?x:
+      (?=
+          \s* $
+        | \s+ \#
+        | \s* : (\s|$)
+        | \s* : {{c_flow_indicator}}
+        | \s* {{c_flow_indicator}}
+      )
+    )
+
+  block_key_lookahead: |-
+    (?x:
+      (?=
+        {{ns_plain_first_plain_out}}
+        (
+            [^\s:]
+          | : \S
+          | \s+ (?![#\s])
+        )*
+        \s*
+        :
+        (\s|$)
+      )
+    )
+
+  block_key_lookahead_bol: |-
+    (?x:
+      (?=
+        ^ [ ]*
+        {{ns_plain_first_plain_out}}
+        (
+            [^\s:]
+          | : \S
+          | \s+ (?![#\s])
+        )*
+        \s*
+        :
+        (\s|$)
+      )
+    )
+
+  non_numeric_block_key_lookahead_bol: |-
+    (?x:
+      (?=
+        ^ [ ]*
+        (?!\d) # exclude number matches
+        {{ns_plain_first_plain_out}}
+        (
+            [^\s:]
+          | : \S
+          | \s+ (?![#\s])
+        )*
+        \s*
+        :
+        (\s|$)
+      )
+    )
+
+  plain_scalar_but_not_block_key: (?={{ns_plain_first_plain_out}})(?!{{block_key_lookahead}})
+
+
 contexts:
 
   comment:
     - meta_include_prototype: false
     - include: YAML.sublime-syntax#comment
 
-  prototype:
-    - include: comment
+#  prototype:
+#    - include: comment
 
   eol:
+    - include: comment
     - match: $
       pop: true
 
@@ -30,6 +122,7 @@ contexts:
     - goto: header
 
   header:
+    - include: comment
     - meta_content_scope: string.unquoted.plain.out.yaml
     - match: (name){{keySeparator_LOOKAHEAD}}
       scope: entity.name.tag.name.SYNTAX
@@ -70,7 +163,7 @@ contexts:
     - include: yaml
 
   keyValue:
-    - match: ':'
+    - match: ':(?=\s|$)'
       scope: punctuation.separator.key-value.yaml
       pop: true
 
@@ -86,14 +179,153 @@ contexts:
 
   string:
     - include: YAML.sublime-syntax#flow-scalar-plain-out
+    - include: comment
     - match: $
       pop: true
 
+  regexp:
+    - meta_content_scope: meta.expect-regexp
+    - include: comment
+    - include: yaml-tags-anchors
+
+    # Not including the regexp syntax here because of the required double-escapes.
+    # As such, double-quoting is discouraged.
+    - match: '"'
+      scope: punctuation.definition.string.begin.yaml
+      push:
+        - meta_scope: string.quoted.double.yaml
+        - meta_content_scope: source.regexp.oniguruma
+        - include: regexp_variable
+        - match: \\.
+          scope: constant.character.escape.yaml
+        - match: '"'
+          scope: punctuation.definition.string.end.yaml
+          pop: true
+
+    - match: "'"
+      scope: punctuation.definition.string.begin.yaml
+      push:
+        - meta_content_scope: source.regexp.oniguruma
+        - match: "'(?!')"
+          scope: punctuation.definition.string.end.yaml
+          pop: true
+        - match: ''
+          push: yamlRegexp
+          with_prototype:
+            - include: regexp_variable
+            - match: "''"
+              scope: constant.character.escape.yaml
+              push: regexp_quantifier_pop
+            - match: \\''
+              scope: constant.character.escape.regexp.yaml
+              push: regexp_quantifier_pop
+            - match: (?=')
+              pop: true
+
+    - match: '{{plain_scalar_but_not_block_key}}'
+      push:
+        - meta_scope: source.regexp.oniguruma
+        - match: '{{_flow_scalar_end_plain_out}}'
+          pop: true
+        - include: yamlRegexp
+      with_prototype:
+        # Variables don't work in with_protoype blocks:
+        # https://github.com/SublimeTextIssues/Core/issues/1488
+        # - match: '{{_flow_scalar_end_plain_out}}'
+        - match: |-
+            (?x:
+              (?=
+                  \s* $
+                | \s+ \#
+                | \s* : (\s|$)
+              )
+            )
+          pop: true
+        - include: regexp_variable
+
+    - match: (?:(\|)|(>))([1-9])?([-+])?
+      captures:
+        1: keyword.control.flow.block-scalar.literal.yaml
+        2: keyword.control.flow.block-scalar.folded.yaml
+        3: constant.numeric.indentation-indicator.yaml
+        4: storage.modifier.chomping-indicator.yaml
+      set:
+        # We need to match the first non-empty line
+        # to determine the block's indentation level
+        # (without verifying that indentation is big enough).
+        # To be more precise, this *should* then be checked in a with_protoype,
+        # but due to with_prototype context overrides being compiled statically,
+        # backreferences are not available.
+        # Instead, only naively include the regexp context and hope the user
+        # closes his regexp groups.
+        #
+        # Because extened mode `(?x)` would push its own context,
+        # we match a block scalar beginning with this separately.
+        #
+        # Another option would be to pop on empty lines.
+        - match: ^([ ]+)(?=.*\(\?[ims]*x[ixms]*(?:-[ims]+)?\))
+        # This match is more accurate but doesn't match `match: ^(?x)`:
+        # - match: ^([ ]+)(\()(\?[ims]*x[ixms]*(?:-[ims]+)?)(\))
+          # captures:
+            # 2: keyword.control.group.regex
+            # 3: storage.modifier.mode.regexp
+            # 4: keyword.control.group.regex
+          set:
+            - meta_scope: source.regexp.oniguruma
+            - match: ^(?!\1|\s*$)
+              pop: true
+            - include: regexp_extended
+          with_prototype:
+            - include: regexp_variable
+        - match: ^([ ]+)(?!$)
+          set:
+            - meta_scope: source.regexp.oniguruma
+            - match: ^(?!\1|\s*$)
+              pop: true
+            - include: yamlRegexp
+          with_prototype:
+            - include: regexp_variable
+        - match: ^(?=\S)  # the block is empty
+          pop: true
+        - include: comment
+        - include: yaml-tags-anchors
+        - match: .+
+          scope: invalid.illegal.expected-comment-or-newline.yaml
+
+    - match: '{{block_key_lookahead_bol}}'
+      pop: true
+
+    - match: '(?!{{ns_plain_first_plain_out}})[^''"\s-].*'
+      scope: invalid.illegal.expected-string.syntax-source
+      pop: true
+
+    - match: (?=\S)
+      pop: true
+
+  yamlRegexp:
+    - include: Oniguruma RegExp.sublime-syntax
+
+  regexp_extended:
+    - meta_content_scope: source.regexp.oniguruma
+    - include: Oniguruma RegExp.sublime-syntax#base-group-extended
+
+  regexp_variable:
+    - match: '(\{\{)([a-zA-Z_0-9]+)(\}\})'
+      scope: meta.variable.syntax-source keyword.other.variable.syntax-source
+      captures:
+        1: punctuation.definition.variable.begin.syntax-source
+        2: variable.other.syntax-source
+        3: punctuation.definition.variable.end.syntax-source
+      push: regexp_quantifier_pop
+
+  regexp_quantifier_pop:
+    - include: Oniguruma RegExp.sublime-syntax#quantifiers
+    - match: ''
+      pop: true
+
+
   scopes:
     - include: string
-
-  regexp:
-    - match: ''
 
   stringArray:
     - include: YAML.sublime-syntax#flow-sequence
@@ -103,13 +335,22 @@ contexts:
   stringArrayItem:
     - match: -\s*
       scope: punctuation.definition.block.sequence.item.yaml
-      push: string
+      set: string
 
   struct:
     - match: ''
 
   lookaheads:
-    - match: ''
+    - meta_include_prototype: false
+    - match: '^  '
+      push: [regexp, keyValue, variableDeclaration]
+    - bail
+
+  variableDeclaration:
+    - include: YAML.sublime-syntax#flow-scalar-plain-out-implicit-type
+    - match: :(?=\s|$)
+      scope: punctuation.separator.mapping.key-value.yaml
+      set: regexp
 
   variables:
     - match: ''

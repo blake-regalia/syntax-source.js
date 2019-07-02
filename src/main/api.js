@@ -18,8 +18,8 @@ let g_self = module.exports = {
 	},
 
 	// load and transform a syntax source file
-	async transform(g_source) {
-		return transform(await g_self.load(g_source));
+	async transform(gc_transform) {
+		return transform(await g_self.load(gc_transform), gc_transform);
 	},
 
 	// exporters
@@ -28,4 +28,6 @@ let g_self = module.exports = {
 			return export_sublime_syntax(...a_args);
 		},
 	},
+
+	string_to_regex: s => s.replace(/([.|?*+[\](){}\\^$])/g, '\\$1'),
 };
