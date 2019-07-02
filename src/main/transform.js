@@ -476,12 +476,12 @@ const H_EXTENSIONS = {
 
 		// invalid action
 		if(!['set', 'push'].includes(s_action)) {
-			throw new Error(`invalid switch action '${s_action}'`);
+			throw new Error(`in context '${k_context.id}': invalid switch action '${s_action}'`);
 		}
 
 		// invalid type
 		if(!Array.isArray(a_cases)) {
-			throw new Error(`invalid switch value type '${a_cases}'; expected sequence (array)`);
+			throw new Error(`in context '${k_context.id}': invalid switch value type '${a_cases}'; expected sequence (array)`);
 		}
 
 		// ref (and delete iff exists) mask
@@ -526,7 +526,7 @@ const H_EXTENSIONS = {
 			}
 			// other?
 			else {
-				throw new TypeError(`unexpected type for switch case: ${z_case}`);
+				throw new TypeError(`in context '${k_context.id}': unexpected type for switch case: ${z_case}`);
 			}
 		}
 
@@ -548,14 +548,14 @@ const H_EXTENSIONS = {
 		}
 		// invalid type
 		else if('string' !== typeof z_add) {
-			throw new Error(`invalid value type given for add: '${z_add}'`);
+			throw new Error(`in context '${k_context.id}': invalid value type given for add: '${z_add}'`);
 		}
 
 		// extend scope
 		{
 			// check modifier
 			if(s_modifiers && !['front', 'top', 'back', 'bottom'].includes(s_modifiers)) {
-				throw new Error(`invalid add modifier '${s_modifiers}'; must be one of [front, top, back, bottom]`);
+				throw new Error(`in context '${k_context.id}': invalid add modifier '${s_modifiers}'; must be one of [front, top, back, bottom]`);
 			}
 
 			// front
@@ -607,7 +607,7 @@ const H_EXTENSIONS = {
 
 		// anonymous context
 		if(!si_context) {
-			throw new Error(`cannot defined lookahead for anonymous context`);
+			throw new Error(`cannot define lookahead for anonymous context`);
 		}
 
 		// lookahead already defined

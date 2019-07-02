@@ -1,0 +1,880 @@
+%YAML 1.2
+---
+name: Syntax Source Definition (YAML)
+scope: source.yaml.syntax-source
+file_extensions:
+  - syntax-source
+
+variables:
+  c_indicator: '[-?:,\[\]{}#&*!|>''"%@`]'
+  c_flow_indicator: '[\[\]{},]'
+
+  ns_plain_first_plain_out: |-
+    (?x:
+        [^\s{{c_indicator}}]
+      | [?:-] \S
+    )
+
+  _flow_scalar_end_plain_out: |-
+    (?x:
+      (?=
+          \s* $
+        | \s+ \#
+        | \s* : (\s|$)
+      )
+    )
+
+  _flow_scalar_end_plain_in: |-
+    (?x:
+      (?=
+          \s* $
+        | \s+ \#
+        | \s* : (\s|$)
+        | \s* : {{c_flow_indicator}}
+        | \s* {{c_flow_indicator}}
+      )
+    )
+
+  block_key_lookahead: |-
+    (?x:
+      (?=
+        {{ns_plain_first_plain_out}}
+        (
+            [^\s:]
+          | : \S
+          | \s+ (?![#\s])
+        )*
+        \s*
+        :
+        (\s|$)
+      )
+    )
+
+  block_key_lookahead_bol: |-
+    (?x:
+      (?=
+        ^ [ ]*
+        {{ns_plain_first_plain_out}}
+        (
+            [^\s:]
+          | : \S
+          | \s+ (?![#\s])
+        )*
+        \s*
+        :
+        (\s|$)
+      )
+    )
+
+  non_numeric_block_key_lookahead_bol: |-
+    (?x:
+      (?=
+        ^ [ ]*
+        (?!\d) # exclude number matches
+        {{ns_plain_first_plain_out}}
+        (
+            [^\s:]
+          | : \S
+          | \s+ (?![#\s])
+        )*
+        \s*
+        :
+        (\s|$)
+      )
+    )
+
+  plain_scalar_but_not_block_key: (?={{ns_plain_first_plain_out}})(?!{{block_key_lookahead}})
+
+contexts:
+  comment:
+    - include: Packages/YAML/YAML.sublime-syntax#comment
+
+  main:
+    - match: (name)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.other.name.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_regexp
+
+    - match: (first_line_match)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.other.first_line_match.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_regexp
+
+    - match: (contexts)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.control.flow.contexts.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: contexts_block
+
+    - match: (lookaheads)(?:(\.)(i))?\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.control.flow.lookaheads.syntax-source
+        2: punctuation.separator.sub-property.yaml
+        3: keyword.other.modifier.syntax-source
+        4: punctuation.separator.key-value.yaml
+      push: lookaheads_block
+
+    - match: (variables)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.control.flow.variables.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: variables_block
+
+    - match: (scope)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml storage.type.scope-name.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_scope
+
+    - match: (file_extensions)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.other.file_extensions.syntax-source
+        2: punctuation.separator.key-value.yaml
+
+    - match: (hidden)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml storage.modifier.hidden.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_bool
+
+    - match: (extends)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml storage.modifier.hidden.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_bool
+
+    - include: comment
+    - include: yaml-tags-anchors
+
+    - include: scope:source.yaml
+
+  lookaheads_block:
+    - meta_scope: meta.block.lookaheads.syntax-source
+    - include: comment
+    - include: yaml-tags-anchors
+    # (based on YAML.sublime-syntax#block-pair)
+    - match: '^ +{{block_key_lookahead}}'
+      push:
+        - include: Packages/YAML/YAML.sublime-syntax#flow-scalar-plain-out-implicit-type
+        - match: :(?=\s|$)
+          scope: punctuation.separator.mapping.key-value.yaml
+          set: expect_regexp_include_list
+        - match: ''
+          push:
+            - meta_scope: string.unquoted.plain.out.yaml entity.name.constant.syntax-source
+            - match: '{{_flow_scalar_end_plain_out}}'
+              pop: true
+    - match: ^(?=\S)
+      pop: true
+
+  variables_block:
+    - meta_scope: meta.block.variables.syntax-source
+    - include: comment
+    - include: yaml-tags-anchors
+    # (based on YAML.sublime-syntax#block-pair)
+    - match: '^ +{{block_key_lookahead}}'
+      push:
+        - include: Packages/YAML/YAML.sublime-syntax#flow-scalar-plain-out-implicit-type
+        - match: :(?=\s|$)
+          scope: punctuation.separator.mapping.key-value.yaml
+          set: expect_regexp
+        - match: ''
+          push:
+            - meta_scope: string.unquoted.plain.out.yaml entity.name.constant.syntax-source
+            - match: '{{_flow_scalar_end_plain_out}}'
+              pop: true
+    - match: ^(?=\S)
+      pop: true
+
+  contexts_block:
+    - meta_scope: meta.block.contexts.syntax-source
+    - include: comment
+    - include: yaml-tags-anchors
+    - include: context_definition
+    - include: context_content
+    - match: ^(?=\S)
+      pop: true
+    - include: scope:source.yaml
+
+  context_definition:
+    # (based on YAML.sublime-syntax#block-pair)
+    - match: ^ {1,2}{{block_key_lookahead}}
+      push:
+        - include: Packages/YAML/YAML.sublime-syntax#flow-scalar-plain-out-implicit-type
+        - match: :(?=\s|$)
+          scope: punctuation.separator.mapping.key-value.yaml
+          pop: true
+        - match: ''
+          set:
+            - meta_scope: string.unquoted.plain.out.yaml entity.name.context.syntax-source
+            - match: '{{_flow_scalar_end_plain_out}}'
+              pop: true
+
+  context_content:
+    - match: (throw)?\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.control.throw.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_bool
+
+    - match: (throw|bail|retry)(?=\s|#|$)
+      scope: string.unquoted.plain.out.yaml keyword.control.exit.syntax-source
+
+    - match: (alone)(?=\s|#|$)
+      scope: string.unquoted.plain.out.yaml support.constant.alone.syntax-source
+
+    - match: (lookahead)(?:(\.)(i))?\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.other.lookahead.syntax-source
+        2: punctuation.separator.sub-property.yaml
+        3: keyword.other.modifier.syntax-source
+        4: punctuation.separator.key-value.yaml
+      push: expect_regexp
+
+    - match: (lookaheads)(?:(\.)(i))?\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.other.lookahead.syntax-source
+        2: punctuation.separator.sub-property.yaml
+        3: keyword.other.modifier.syntax-source
+        4: punctuation.separator.key-value.yaml
+      push: expect_include_list
+
+    - match: (words?)(?:(\.)(auto|mixed|camel|lower|upper|lower_camel|exact))?\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.other.word.syntax-source
+        2: punctuation.separator.sub-property.yaml
+        3: keyword.other.modifier.syntax-source
+        4: punctuation.separator.key-value.yaml
+      push: expect_regexp
+
+    - match: (switch)(?:(\.)(set|push))?\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.control.switch.syntax-source
+        2: punctuation.separator.sub-property.yaml
+        3: keyword.other.modifier.syntax-source
+        4: punctuation.separator.key-value.yaml
+      push: expect_switch_map
+
+    - match: (goto)(?:(\.)(set|push))?\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.other.goto.syntax-source
+        2: punctuation.separator.sub-property.yaml
+        3: keyword.other.modifier.syntax-source
+        4: punctuation.separator.key-value.yaml
+      push: expect_include_list
+
+    - match: (includes)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.other.includes.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_include_list
+
+    - match: (open)(?:(\.)(paren|brace|bracket|tag|d?irk))\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.other.open.syntax-source
+        2: punctuation.separator.sub-property.yaml
+        3: keyword.other.modifier.syntax-source
+        4: punctuation.separator.key-value.yaml
+      push: expect_scope
+
+    - match: (close)(?:(\.)(paren|brace|bracket|tag|d?irk))\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.other.close.syntax-source
+        2: punctuation.separator.sub-property.yaml
+        3: keyword.other.modifier.syntax-source
+        4: punctuation.separator.key-value.yaml
+      push: expect_scope
+
+    - match: (add)(?:(\.)(front|top|back|bottom))?\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.other.add.syntax-source
+        2: punctuation.separator.sub-property.yaml
+        3: keyword.other.modifier.syntax-source
+        4: punctuation.separator.key-value.yaml
+      push: expect_scope
+
+    - match: (mask)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.other.mask.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_scope
+
+    - match: (match)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.other.match.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_regexp
+
+    - match: (escape)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.other.escape.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_regexp
+
+    - match: ((?:escape_)?captures)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml storage.type.captures.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_captures
+
+    - match: ((?:embed_)?scope)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml storage.type.scope-name.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_scope
+
+    - match: (include|embed)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.operator.include.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_include
+
+    - match: (push|set)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.control.flow.push.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_include_list
+      # can also be a normal context mapping (in which case the context pops)
+
+    - match: (with_prototype)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.control.flow.push.syntax-source
+        2: punctuation.separator.key-value.yaml
+
+    - match: (pop)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.control.flow.pop.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_bool
+
+    - match: (meta_(?:content_)?scope)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml storage.type.scope-name.meta.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_scope
+
+    - match: (meta_include_prototype)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml keyword.control.flow.include-prototype.syntax-source
+        2: punctuation.separator.key-value.yaml
+      push: expect_bool
+
+    - match: (comment)\s*(:)(?=\s|$)
+      captures:
+        1: string.unquoted.plain.out.yaml entity.name.tag.yaml
+        3: punctuation.separator.key-value.yaml
+      push: expect_comment
+
+    - match: (clear_scopes)\s*(:)(?=\s|$)  # expects bool or number
+      captures:
+        1: string.unquoted.plain.out.yaml storage.modifier.clear-scopes.syntax-source
+        2: punctuation.separator.key-value.yaml
+
+  expect_captures:
+    - meta_content_scope: meta.expect-captures.yaml
+    - include: comment
+    - include: yaml-tags-anchors
+    - match: (\d+)\s*(:)(?=\s|$)
+      captures:
+        1: constant.numeric.integer.yaml
+        2: punctuation.separator.key-value.yaml
+      push: expect_scope
+    - match: '{{non_numeric_block_key_lookahead_bol}}'
+      pop: true
+    - match: (?=\S)
+      pop: true
+
+  expect_scope:
+    # ends upon EOL
+    - meta_content_scope: meta.expect-scope
+    - include: comment
+    - include: yaml-tags-anchors
+    - match: (?={{ns_plain_first_plain_out}})
+      set:
+        - meta_scope: meta.scope.syntax-source string.unquoted.plain.out.yaml
+        - match: '{{_flow_scalar_end_plain_in}}'
+          # use plain-in for when inside of an 'include-list', although not always accurate
+          set:
+            - match: \n?
+              scope: meta.scope.syntax-source
+              pop: true
+        - match: \.
+          scope: punctuation.separator.scope-segments.syntax-source
+        # TODO match common scope names?
+    # - include: scope:source.yaml
+    - match: $
+      pop: true
+
+    - match: (?:(\|)|(>))([1-9])?([-+])?
+      captures:
+        1: keyword.control.flow.block-scalar.literal.yaml
+        2: keyword.control.flow.block-scalar.folded.yaml
+        3: constant.numeric.indentation-indicator.yaml
+        4: storage.modifier.chomping-indicator.yaml
+      set:
+        # We need to match the first non-empty line
+        # to determine the block's indentation level
+        # (without verifying that indentation is big enough).
+        - match: ^([ ]+)(?!$)
+          set:
+            - meta_scope: meta.scope.syntax-source string.unquoted.block.yaml
+            - match: ^(?!\1|\s*$)
+              pop: true
+            - match: \.
+              scope: punctuation.separator.scope-segments.syntax-source
+            - include: regexp
+        - match: ^(?=\S)  # the block is empty
+          pop: true
+        - include: comment
+        - include: yaml-tags-anchors
+        - match: .+
+          scope: invalid.illegal.expected-comment-or-newline.yaml
+
+  expect_include:
+    - meta_content_scope: meta.expect-include
+    - include: comment
+    - include: yaml-tags-anchors
+    - include: include
+    - match: $|(?=\S)
+      pop: true
+
+  expect_switch_map:
+    - meta_content_scope: meta.expect-switch-map
+    - include: comment
+    - include: yaml-tags-anchors
+    # array-like include list
+    - match: \[
+      scope: punctuation.definition.array.begin.syntax-source
+      set:
+        - meta_scope: meta.include-list.syntax-source meta.flow-sequence.yaml
+        - match: \]
+          scope: punctuation.definition.array.end.syntax-source
+          pop: true
+        - match: ','
+          scope: punctuation.separator.array-element.syntax-source
+        - include: comment
+        - include: yaml-tags-anchors
+        - include: include
+    # multi-line include list
+    - match: ^
+      set:
+        - meta_scope: meta.expect-switch-map-or-content
+        - include: comment
+        - match: '^([ ]+)(?=-\s*{{ns_plain_first_plain_out}})'
+          set:
+            - meta_content_scope: meta.switch-map-or-content.syntax-source
+            # - match: (\w+)\s*(:)(?=\s|$)
+            #   captures:
+            #     1: string.unquoted.plain.out.yaml variable.other.syntax-source keyword.other.variable.syntax-source
+            #     2: punctuation.separator.key-value.yaml
+            #   set: expect_include_list
+
+            - include: switch_map_content
+            # if the first line contains a context reference
+            # -> provide completions for context references only,
+            #    beginning from the second line
+            - match: ^(?=([ ]+)-)
+              set:
+                - meta_scope: meta.include-list.syntax-source
+                - include: switch_map_content
+
+        - include: yaml-block-sequence
+        - include: include_anonymous
+        # first item after push/set looks like an included context
+        # -> maybe include, maybe incomplete key
+        # -> provide completions for both (context references and keys)
+        - match: ^([ ]+)(?=-\s*{{plain_scalar_but_not_block_key}})
+          set:
+            - meta_content_scope: meta.include-list-or-content.syntax-source
+            - include: include_list_content
+            # if the first line contains a context reference
+            # -> provide completions for context references only,
+            #    beginning from the second line
+            - match: ^(?=([ ]+)-)
+              set:
+                - meta_scope: meta.include-list.syntax-source
+                - include: include_list_content
+
+        # limit context to the current line
+        - match: $|(?=\S)
+          pop: true
+    # maybe single include
+    - match: (?=\S)
+      set: expect_include
+
+  expect_include_list:
+    - meta_content_scope: meta.expect-include-list
+    - include: comment
+    - include: yaml-tags-anchors
+    # array-like include list
+    - match: \[
+      scope: punctuation.definition.array.begin.syntax-source
+      set:
+        - meta_scope: meta.include-list.syntax-source meta.flow-sequence.yaml
+        - match: \]
+          scope: punctuation.definition.array.end.syntax-source
+          pop: true
+        - match: ','
+          scope: punctuation.separator.array-element.syntax-source
+        - include: comment
+        - include: yaml-tags-anchors
+        - include: include
+    # multi-line include list
+    - match: ^
+      set:
+        - meta_scope: meta.expect-include-list-or-content
+        - include: comment
+        - include: yaml-block-sequence
+        - include: include_anonymous
+        # first item after push/set looks like an included context
+        # -> maybe include, maybe incomplete key
+        # -> provide completions for both (context references and keys)
+        - match: ^([ ]+)(?=-\s*{{plain_scalar_but_not_block_key}})
+          set:
+            - meta_content_scope: meta.include-list-or-content.syntax-source
+            - include: include_list_content
+            # if the first line contains a context reference
+            # -> provide completions for context references only,
+            #    beginning from the second line
+            - match: ^(?=([ ]+)-)
+              set:
+                - meta_scope: meta.include-list.syntax-source
+                - include: include_list_content
+        # limit context to the current line
+        - match: $|(?=\S)
+          pop: true
+    # maybe single include
+    - match: (?=\S)
+      set: expect_include
+
+  switch_map_content:
+    - match: '({{ns_plain_first_plain_out}}(?:[^\s:]| : \S| \s+ (?![#\s]))*)\s*(:)(?:\s|$)'
+      captures:
+        1: variable.other.syntax-source
+        2: punctuation.separator.key-value.yaml
+      set: expect_include_list
+    # - include: include_list_content
+    - include: comment
+    - include: include
+    - include: yaml-block-sequence
+    - include: include_anonymous
+    # pop off at none-empty line with different indention than first include item
+    - match: ^(?!(\s*$|\1-))
+      pop: true
+    - match: \S.+$
+      scope: invalid.illegal.switch-map.syntax-source
+
+  include_list_content:
+    - include: comment
+    - include: include
+    - include: yaml-block-sequence
+    - include: include_anonymous
+    # pop off at none-empty line with different indention than first include item
+    - match: ^(?!(\s*$|\1-))
+      pop: true
+    - match: \S.+$
+      scope: invalid.illegal.include.syntax-source
+
+  include_anonymous:
+    # a line with two (or more) hyphons after each other indicates the start
+    # of an anonymous context block embedded into an include list
+    - match: ^([ ]+)(?=- -)
+      push:
+        - clear_scopes: 1  # remove include-list... meta scopes
+        - meta_content_scope: meta.anonymous-context.syntax-source
+        - include: contexts_block
+        - match: ^(?!(\s*$|\1 +))
+          pop: true
+
+  include:
+    - match: '{{plain_scalar_but_not_block_key}}'
+      push:
+        - meta_scope: meta.include.syntax-source string.unquoted.plain.out.yaml
+        - match: '{{_flow_scalar_end_plain_in}}'
+          pop: true
+        # scope-based includes
+        - match: scope(:)(?=\w)
+          scope: support.type.include.syntax-source
+          captures:
+            1: punctuation.definition.scope-include.syntax-source
+          set:
+            - meta_content_scope: meta.include.syntax-source string.unquoted.plain.out.yaml
+            - match: '{{_flow_scalar_end_plain_in}}'
+              pop: true
+            - match: '#'
+              scope: punctuation.separator.context-name.syntax-source
+              set: expect_include
+        # absolute includes
+        - match: \w((?!\s#|:\s)[^{{c_flow_indicator}}])+\.sublime-syntax(?=\s*(#|$))
+          scope: support.module.file-path.syntax-source
+          set:
+            - match: '{{_flow_scalar_end_plain_in}}'
+              # use plain-in for when inside of an 'include-list', although not always accurate
+              pop: true
+            - match: '#'
+              scope: meta.include.syntax-source
+                string.unquoted.plain.out.yaml
+                punctuation.separator.context-name.syntax-source
+              pop: true
+        # local includes
+        - match: '([\w-]+)([?*^+]?){{_flow_scalar_end_plain_in}}'  # matches until first '/' or ',' or ']'
+          captures:
+            1: variable.other.syntax-source
+            2: keyword.operator.quantifier.regexp.syntax-source
+        # We don't recognize this anything else, so just match as string
+        - match: ''
+          set:
+            - meta_scope: string.unquoted.plain.out.yaml
+            - match: '{{_flow_scalar_end_plain_in}}'
+              pop: true
+
+  expect_bool:
+    - meta_content_scope: meta.expect-bool
+    - include: comment
+    - include: yaml-tags-anchors
+    - match: \b(true|false){{_flow_scalar_end_plain_out}}
+      scope: constant.language.boolean.yaml
+    - match: $
+      pop: true
+
+  expect_comment:
+    - meta_content_scope: meta.expect-comment
+    - include: comment
+    - include: yaml-tags-anchors
+    - match: '"'
+      scope: punctuation.definition.string.begin.yaml
+      push:
+        - meta_scope: comment.other.quoted.double.syntax-source
+        - match: \\.
+          scope: constant.character.escape.yaml
+        - match: '"'
+          scope: punctuation.definition.string.end.yaml
+          pop: true
+
+    - match: "'"
+      scope: punctuation.definition.string.begin.yaml
+      set:
+        - meta_scope: comment.other.quoted.single.syntax-source
+        - match: "''"
+          scope: constant.character.escape.yaml
+        - match: "'"
+          scope: punctuation.definition.string.end.yaml
+          pop: true
+
+    - match: '{{plain_scalar_but_not_block_key}}'
+      set:
+        - meta_scope: comment.other.plain.syntax-source
+        - match: '{{_flow_scalar_end_plain_out}}'
+          pop: true
+
+    - match: (?:(\|)|(>))([1-9])?([-+])?
+      captures:
+        1: punctuation.definition.block.scalar.literal.yaml
+        2: punctuation.definition.block.scalar.folded.yaml
+        3: constant.numeric.indentation-indicator.yaml
+        4: storage.modifier.chomping-indicator.yaml
+      set:
+        - match: ^([ ]+)(?!$)  # match first non-empty line to determine indentation level
+          # note that we do not check if indentation is enough
+          set:
+            - meta_scope: comment.other.unquoted.block.syntax-source
+            - match: ^(?!\1|\s*$)
+              pop: true
+        - match: ^(?=\S)  # the block is empty
+          pop: true
+        - include: comment  # include comments but not properties
+        - match: .+
+          scope: invalid.illegal.expected-comment-or-newline.yaml
+
+    - match: '{{block_key_lookahead_bol}}'
+      pop: true
+    - match: (?=\S)
+      pop: true
+
+  expect_regexp_include_list:
+    # array-like include list
+    - match: \[
+      scope: punctuation.definition.array.begin.syntax-source
+      set:
+        - meta_scope: meta.include-list.syntax-source meta.flow-sequence.yaml
+        - match: \]
+          scope: punctuation.definition.array.end.syntax-source
+          pop: true
+        - match: ','
+          scope: punctuation.separator.array-element.syntax-source
+        - include: comment
+        - include: yaml-tags-anchors
+        - include: include
+    # multi-line include list
+    - match: ^
+      set:
+        - meta_scope: meta.expect-include-list-or-content
+        - include: comment
+        - include: yaml-block-sequence
+        - include: include_anonymous
+        # first item after push/set looks like an included context
+        # -> maybe include, maybe incomplete key
+        # -> provide completions for both (context references and keys)
+        - match: ^([ ]+)(?=-\s*{{plain_scalar_but_not_block_key}})
+          set:
+            - meta_content_scope: meta.include-list-or-content.syntax-source
+            - include: include_list_content
+            # if the first line contains a context reference
+            # -> provide completions for context references only,
+            #    beginning from the second line
+            - match: ^(?=([ ]+)-)
+              set:
+                - meta_scope: meta.include-list.syntax-source
+                - include: include_list_content
+        # limit context to the current line
+        - match: $|(?=\S)
+          pop: true
+    - include: expect_regexp
+
+  expect_regexp:
+    - meta_content_scope: meta.expect-regexp
+    - include: comment
+    - include: yaml-tags-anchors
+
+    # Not including the regexp syntax here because of the required double-escapes.
+    # As such, double-quoting is discouraged.
+    - match: '"'
+      scope: punctuation.definition.string.begin.yaml
+      push:
+        - meta_scope: string.quoted.double.yaml
+        - meta_content_scope: source.regexp.oniguruma
+        - include: regexp_variable
+        - match: \\.
+          scope: constant.character.escape.yaml
+        - match: '"'
+          scope: punctuation.definition.string.end.yaml
+          pop: true
+
+    - match: "'"
+      scope: punctuation.definition.string.begin.yaml
+      push:
+        - meta_content_scope: source.regexp.oniguruma
+        - match: "'(?!')"
+          scope: punctuation.definition.string.end.yaml
+          pop: true
+        - match: ''
+          push: regexp
+          with_prototype:
+            - include: regexp_variable
+            - match: "''"
+              scope: constant.character.escape.yaml
+              push: regexp_quantifier_pop
+            - match: \\''
+              scope: constant.character.escape.regexp.yaml
+              push: regexp_quantifier_pop
+            - match: (?=')
+              pop: true
+
+    - match: '{{plain_scalar_but_not_block_key}}'
+      push:
+        - meta_scope: source.regexp.oniguruma
+        - match: '{{_flow_scalar_end_plain_out}}'
+          pop: true
+        - include: regexp
+      with_prototype:
+        # Variables don't work in with_protoype blocks:
+        # https://github.com/SublimeTextIssues/Core/issues/1488
+        # - match: '{{_flow_scalar_end_plain_out}}'
+        - match: |-
+            (?x:
+              (?=
+                  \s* $
+                | \s+ \#
+                | \s* : (\s|$)
+              )
+            )
+          pop: true
+        - include: regexp_variable
+
+    - match: (?:(\|)|(>))([1-9])?([-+])?
+      captures:
+        1: keyword.control.flow.block-scalar.literal.yaml
+        2: keyword.control.flow.block-scalar.folded.yaml
+        3: constant.numeric.indentation-indicator.yaml
+        4: storage.modifier.chomping-indicator.yaml
+      set:
+        # We need to match the first non-empty line
+        # to determine the block's indentation level
+        # (without verifying that indentation is big enough).
+        # To be more precise, this *should* then be checked in a with_protoype,
+        # but due to with_prototype context overrides being compiled statically,
+        # backreferences are not available.
+        # Instead, only naively include the regexp context and hope the user
+        # closes his regexp groups.
+        #
+        # Because extened mode `(?x)` would push its own context,
+        # we match a block scalar beginning with this separately.
+        #
+        # Another option would be to pop on empty lines.
+        - match: ^([ ]+)(?=.*\(\?[ims]*x[ixms]*(?:-[ims]+)?\))
+        # This match is more accurate but doesn't match `match: ^(?x)`:
+        # - match: ^([ ]+)(\()(\?[ims]*x[ixms]*(?:-[ims]+)?)(\))
+          # captures:
+            # 2: keyword.control.group.regex
+            # 3: storage.modifier.mode.regexp
+            # 4: keyword.control.group.regex
+          set:
+            - meta_scope: source.regexp.oniguruma
+            - match: ^(?!\1|\s*$)
+              pop: true
+            - include: regexp_extended
+          with_prototype:
+            - include: regexp_variable
+        - match: ^([ ]+)(?!$)
+          set:
+            - meta_scope: source.regexp.oniguruma
+            - match: ^(?!\1|\s*$)
+              pop: true
+            - include: regexp
+          with_prototype:
+            - include: regexp_variable
+        - match: ^(?=\S)  # the block is empty
+          pop: true
+        - include: comment
+        - include: yaml-tags-anchors
+        - match: .+
+          scope: invalid.illegal.expected-comment-or-newline.yaml
+
+    - match: '{{block_key_lookahead_bol}}'
+      pop: true
+
+    - match: '(?!{{ns_plain_first_plain_out}})[^''"\s-].*'
+      scope: invalid.illegal.expected-string.syntax-source
+      pop: true
+
+    - match: (?=\S)
+      pop: true
+
+  regexp:
+    - include: Oniguruma RegExp.sublime-syntax
+
+  regexp_extended:
+    - meta_content_scope: source.regexp.oniguruma
+    - include: Oniguruma RegExp.sublime-syntax#base-group-extended
+
+  regexp_variable:
+    - match: '(\{\{)([a-zA-Z_0-9]+)(\}\})'
+      scope: meta.variable.syntax-source keyword.other.variable.syntax-source
+      captures:
+        1: punctuation.definition.variable.begin.syntax-source
+        2: variable.other.syntax-source
+        3: punctuation.definition.variable.end.syntax-source
+      push: regexp_quantifier_pop
+
+  regexp_quantifier_pop:
+    - include: Oniguruma RegExp.sublime-syntax#quantifiers
+    - match: ''
+      pop: true
+
+  yaml-block-sequence:
+    - include: YAML.sublime-syntax#block-sequence
+
+  yaml-tags-anchors:
+    - include: YAML.sublime-syntax#property

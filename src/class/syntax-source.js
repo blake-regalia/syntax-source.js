@@ -15,7 +15,7 @@ const H_KEYS_TOP = {
 	lookaheads: {
 		type: 'tree',
 		load(h_yaml, s_modifiers='') {
-			let h_lookaheads = {};
+			let h_lookaheads = this.lookaheads || {};
 
 			// default
 			h_yaml = h_yaml || {};
@@ -52,7 +52,7 @@ const H_KEYS_TOP = {
 	variables: {
 		type: 'tree',
 		load(h_yaml, s_modifiers='') {
-			let h_variables = {};
+			let h_variables = this.variables || {};
 
 			// default
 			h_yaml = h_yaml || {};
@@ -89,7 +89,7 @@ const H_KEYS_TOP = {
 	contexts: {
 		type: 'tree',
 		load(h_yaml) {
-			let h_contexts = {};
+			let h_contexts = this.contexts || {};
 
 			// default
 			h_yaml = h_yaml || {};
