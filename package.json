@@ -1,12 +1,15 @@
 {
   "name": "syntax-source",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "",
   "main": "src/main/api.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["syntax", "generator"],
+  "keywords": [
+    "syntax",
+    "generator"
+  ],
   "author": {
     "name": "Blake Regalia",
     "email": "blake.regalia@gmail.com"
