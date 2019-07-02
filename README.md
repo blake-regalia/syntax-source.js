@@ -4,7 +4,59 @@
 Generate high-resolution and _complete_ syntax definitions for languages by feeding this API a set of YAML input files that mimic and extend the [Sublime Text 3 Syntax Definition Schema](https://www.sublimetext.com/docs/3/syntax.html).
 
 
-## Documentation
+## API Documentation
+
+_Example build script:_
+```js
+#!/usr/bin/env node
+const syntax_source = require('syntax-source');
+const export_sublime_syntax = syntax_source.export['sublime-syntax'];
+
+(async() => {
+	// load syntax source from a path string
+	let k_syntax = await syntax_source.transform({
+		path: process.argv[2],
+
+		// optional custom exstensions
+		extensions: {
+			_customKey: (k_context, k_rule, s_version) => {
+				let s_ext = k_context.syntax.ext;
+
+				// remove source rule from context
+				let i_rule = k_context.drop(k_rule);
+
+				// create new rule
+				k_context.insert(i_rule++, {
+					match: `(myCustomRegex)(:)`,
+					captures: [
+						`keyword.other.word.my-custom-regex.SYNTAX`,
+						`punctuation.separator.custom.colon.SYNTAX`,
+					],
+					pop: true,
+				});
+
+				return i_rule;
+			},
+		},
+	});
+
+	// write to stdout
+	process.stdout.write(export_sublime_syntax(k_syntax, {
+		// optional post-processing transform
+		post: g_yaml => ({
+			...g_yaml,
+			name: `${g_yaml.name} (MyPackage)`,
+		}),
+	}));
+})().catch((e_compile) => {
+	console.error(e_compile.stack);
+	process.exit(1);
+});
+```
+
+
+## Documentation for Input Files
+The input files closely follow the `.sublime-syntax` format (an extension of YAML), but the extension should be `.syntax-source` so the highlighting works and so that Sublime Text 3 does not try loading the source files as syntax definitions.
 
 ### Primer
 This API operates under the assumption that every context intends to match the full range of tokens expected at that state in the grammar. If none of the rules in a given context are matched by the input, an implcitly generated 'catch-all' rule at the end will mark the text invalid (via the `invalid.illega.token.expected.CONTEXT.SYNTAX` scope) and pop the context from the stack (equivalent to the [`throw`](#alias.throw) alias)
