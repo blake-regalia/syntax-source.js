@@ -6,8 +6,11 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["syntax", "generator"],
+  "author": {
+    "name": "Blake Regalia",
+    "email": "blake.regalia@gmail.com"
+  },
   "license": "ISC",
   "devDependencies": {
     "emk": "^1.7.2"

@@ -62,6 +62,12 @@ The input files closely follow the `.sublime-syntax` format (an extension of YAM
 This API operates under the assumption that every context intends to match the full range of tokens expected at that state in the grammar. If none of the rules in a given context are matched by the input, an implcitly generated 'catch-all' rule at the end will mark the text invalid (via the `invalid.illega.token.expected.CONTEXT.SYNTAX` scope) and pop the context from the stack (equivalent to the [`throw`](#alias.throw) alias)
 
 
+### Top Level Key Extensions
+In addition to the regular `name`, `file_extensions`, `scope`, etc., you can also use the following keys at the root of the definition structure:
+
+ - `extends` : `filename` - inherit all the variables and contexts defined in the given `.syntax-source`, overriding any duplicate keys.
+
+
 ### Context Quantifiers
 When using the `set` or `push` actions, you can essentially quantify a context (which creates a new ad-hoc context) by appending one of the following characters to the target name:
 
@@ -223,15 +229,6 @@ This rule automatically adds the regex `'WORD{{_WORD_BOUNDARY}}'` to the context
 
 > Keep in mind that these lookaheads will not uselessly bloat your output because any unused variables are automatically removed during compilation, much like dead code removal. You can override the generated lookahead by adding a `- lookahead: 'regex'` rule to the context.
 
-**Match Patterns:**
-The following keys will match the supplied text value over several variations of its case.
- - `word`: `text` - 
- - `words`: `array<text>` - same as `word` but accepts an array of words
- - `word.mixed`: `text` - 
- - `words.mixed`: `array<text>` - same as `word.mixed` but accepts an array of words
- - `word.camel`: `text` - matches either `camel` or `pascal`
- - `words.camel`: `array<text>` - same as `word.camel` but accepts an array of words
-
 `CASE` *(Modifiers):*
  - `.auto` - DEFAULT: matches the best fit using either `.mixed` or `.camel` depending on the case of the text. If all characters given are lower case, it will use `.mixed`, otherwise it will use `.camel`.
  - `.mixed` - attempts matches the following cases in order: `lower`, `upper`, `proper` or `mixed`.
@@ -310,7 +307,7 @@ contexts:
 
 <a name="extension.mask" />
 
-### `mask` : `scope`
+#### `mask` : `scope`
 Before changing state, push a context to the stack that will apply the given scope to all contexts put on the stack by some action. This is useful when you want to apply different scopes to a token depending on where it is in the grammar while reusing the same context to match the token itself. Can only be used in combination with a rule that has a `set` or `push` action.
 
 _Example:_
@@ -353,14 +350,14 @@ contexts:
 
 <a name="extension.add" />
 
-### `add[.back|front]` : `scope`
+#### `add[.back|front]` : `scope`
 Rather than replacing the generated scope, add the given scope to the output either at the `.back` (binds tigther to the token) or at the `.front` (binds looser to the token).
 
 
 <a name="extension.open" />
 
-### `open[.SYMBOL]` : `subscope`
-### `close[.SYMBOL]` : `subscope`
+#### `open[.SYMBOL]` : `subscope`
+#### `close[.SYMBOL]` : `subscope`
 Generates a rule that matches either the opening of closing of the given `SYMBOL`, and sets the scope according to the following table.
 
 `SYMBOL` and it's corresponding open/close character, respectively, followed by the scope it applies. `SIDE` is either `begin` or `end` accordingly:
