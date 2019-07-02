@@ -400,9 +400,9 @@ const H_EXTENSIONS = {
 			k_context.transitive = w_context_goto;
 		}
 
-		// add lookaheads to context
+		// add lookahead from top state to context
 		k_context.lookaheads.push(
-			...normalize_dst(w_context_goto)
+			...normalize_dst(w_context_goto).slice(-1)
 				.map(s_context => ({
 					lookahead: s_context,
 				}))

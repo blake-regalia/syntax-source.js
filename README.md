@@ -3,6 +3,8 @@
 
 Generate high-resolution and _complete_ syntax definitions for languages by feeding this API a set of YAML input files that mimic and extend the [Sublime Text 3 Syntax Definition Schema](https://www.sublimetext.com/docs/3/syntax.html).
 
+## Examples
+ - [linked-data.syntaxes](https://github.com/blake-regalia/linked-data.syntaxes/tree/master/src/syntax)
 
 ## API Documentation
 
