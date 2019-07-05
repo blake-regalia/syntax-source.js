@@ -1,6 +1,8 @@
 
 const R_REFERENCE = /(?<=(?:^|[^\\])(?:\\\\)*)\{\{([A-Za-z0-9_]+)\}\}/g;
 const R_LOOKAHEAD_ASSERTION = /(^|[^\\])\(\?=/g;
+const R_ANCHORED_LOOKAHEAD_ASSERTION = /^(?:\(\?x\)\s*(?:\(\s*\?\s*[a-z]+\s*\)\s*)*|\(\?[a-z]+\))*\(\?=/g;
+const R_ANCHORED_REFERENCE = /^(?:\(\?x\)\s*(?:\(\s*\?\s*[a-z]+\s*\)\s*)*|\(\?[a-z]+\))*\{\{([A-Za-z0-9_]+)\}\}/;
 
 const search_reachable = (h_defined, a_search, as_reachable=new Set()) => {
 	for(let s_search of a_search) {
@@ -219,6 +221,73 @@ const check_dependents = (h_dependent_vars, a_path, nl_max_path=Infinity,  a_exc
 	}
 
 	return a_excessive_paths;
+};
+
+const is_lookahead = (s_regex, h_variables) => {
+	// regex starts with lookahead
+	if(R_ANCHORED_LOOKAHEAD_ASSERTION.test(s_regex)) {
+		return true;
+	}
+	// does not start with explicity lookahead
+	else {
+		// regex starts with variable ref
+		let m_ref = R_ANCHORED_REFERENCE.exec(s_regex);
+		if(m_ref) {
+			return is_lookahead(h_variables[m_ref[1]], h_variables);
+		}
+		// not lookahead
+		else {
+			return false;
+		}
+	}
+};
+
+
+const check_acyclic = (h_contexts, h_variables, h_states, a_path) => {
+	// top of stack
+	let si_context = a_path[a_path.length-1];
+
+	let k_context = h_contexts[si_context];
+
+	let as_transitions = h_states[si_context] = new Set();
+
+	// each rule in context
+	for(let [k_rule] of k_context.subrules()) {
+		// rule source
+		let g_source = k_rule.source;
+
+		// state transition
+		if(g_source.set || g_source.push) {
+			// match is lookahead
+			if(g_source.match && is_lookahead(g_source.match, h_variables)) {
+				let s_change;
+				let z_change = g_source.set || g_source.push;
+				if('string' === typeof z_change) {
+					s_change = z_change;
+				}
+				else {
+					s_change = z_change[z_change.length-1];
+				}
+
+				as_transitions.add(s_change);
+			}
+		}
+		// include (extensibily a transition)
+		else if(g_source.include) {
+			as_transitions.add(g_source.include);
+		}
+	}
+
+	// check each transition in table
+	for(let s_state of as_transitions) {
+		// cycle detected
+		if(a_path.includes(s_state)) {
+			throw new Error(`State transition cycle detected at: ${a_path.join(' > ')}`);
+		}
+
+		// recurse
+		check_acyclic(h_contexts, h_variables, h_states, [...a_path, s_state]);
+	}
 };
 
 
@@ -501,20 +570,20 @@ const resolve = (k_syntax) => {
 		}
 	}
 
-	// check for DAG and max reference depth
+	// check for variable DAG and max reference depth
 	{
-		const NL_MAX_PATH = 9;
+		let nl_max_path = 7;  // usually 8 but reduces to 7 when other errors are present
 
 		let a_excessive_paths = [];
 		for(let si_variable in h_dependent_vars) {
-			a_excessive_paths.push(...check_dependents(h_dependent_vars, [si_variable], NL_MAX_PATH));
+			a_excessive_paths.push(...check_dependents(h_dependent_vars, [si_variable], nl_max_path));
 		}
 
 		let h_expanded = {};
 		for(let a_path of a_excessive_paths) {
 			let nl_path = a_path.length;
 
-			for(let i_step=nl_path-1; i_step>=NL_MAX_PATH-1; i_step--) {
+			for(let i_step=nl_path-1; i_step>=nl_max_path-1; i_step--) {
 				let si_dep = a_path[i_step];
 
 				// dependency not yet defined
@@ -531,30 +600,6 @@ const resolve = (k_syntax) => {
 		}
 	}
 
-	// // reduce redundant lookaheads
-	// {
-	// 	for(let si_variable of h_variables_out) {
-	// 		h_variables_out[si_variable] = reduce_regexp(h_variables_out[si_variable]);
-	// 	}
-	// }
-
-	// // expand variables
-	// {
-	// 	let h_expanded = k_syntax.expanded_variables = {};
-	// 	for(let [si_variable, s_pattern] of Object.entries(h_variables_out)) {
-	// 		h_expanded[si_variable] = s_pattern.replace(R_REFERENCE, (s_match, s_ref) => {
-	// 			// ref not expanded yet
-	// 			if(!(s_ref in h_expanded)) {
-	// 				throw new Error(`variable '${s_ref}' referenced in ${k_syntax.path}#${si_variable} is out of reference order`);
-	// 			}
-
-	// 			return h_expanded[s_ref];
-	// 		});
-	// 	}
-
-	// 	// return h_expanded;
-	// }
-
 
 	// make sure every context reference is defined
 	{
@@ -566,6 +611,72 @@ const resolve = (k_syntax) => {
 			if(!(s_state in h_defined_ctxs)) {
 				throw new Error(`state '${s_state}' is referenced but not defined; appears in contexts [${h_referenced_ctxs[s_state].join(', ')}]`);
 			}
+		}
+	}
+
+
+	// check for context DAG
+	{
+		let h_states = {};
+
+		// start with main
+		check_acyclic(h_contexts, h_variables_out, h_states, ['main']);
+
+		// add prototype
+		if(h_contexts.prototype) {
+			check_acyclic(h_contexts, h_variables_out, h_states, ['prototype']);
+		}
+
+		// check remaining contexts
+		for(let si_context in h_contexts) {
+			// context hasn't been checked yet
+			if(!(si_context in h_states)) {
+				check_acyclic(h_contexts, h_variables_out, h_states, [si_context]);
+			}
+		}
+	}
+
+	// determine necessity for failsafe context 'flush'
+	{
+		let k_context_main = k_syntax.contexts.main;
+
+		let g_rule_flush = {
+			match: '_SOMETHING',
+			scope: `invalid.illegal.unknown.flush.${k_syntax.ext}`,
+			pop: true,
+		};
+
+		let b_flush = false;
+
+		// each rule in context
+		for(let [k_rule] of k_context_main.subrules()) {
+			// rule source
+			let g_source = k_rule.source;
+
+			// state transition
+			let s_action = g_source.set? 'set': 'push';
+			if(g_source[s_action]) {
+				// match is lookahead
+				if(g_source.match && is_lookahead(g_source.match, h_variables_out)) {
+					let a_change = g_source[s_action];
+					if('string' === typeof a_change) {
+						a_change = [a_change];
+					}
+
+					// prepend flush state
+					g_source[s_action] = ['_FLUSH', ...a_change];
+					b_flush = true;
+				}
+			}
+		}
+
+		// append flush context
+		if(b_flush) {
+			k_syntax.append('_FLUSH', [g_rule_flush]);
+		}
+		// append flush state to main context in case it includes
+		else {
+			k_context_main.add(g_rule_flush);
 		}
 	}
 

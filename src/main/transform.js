@@ -659,7 +659,10 @@ const H_QUANTIFIERS = {
 			]);
 
 			// add lookaheads to context
-			k_context.lookaheads = [...k_syntax.contexts[s_state].lookaheads];
+			// k_context.lookaheads = [...k_syntax.contexts[s_state].lookaheads];
+			k_context.lookaheads = [{
+				lookaheads: s_state,
+			}];
 		}
 	},
 
@@ -683,7 +686,10 @@ const H_QUANTIFIERS = {
 			]);
 
 			// add lookaheads to context
-			k_context.lookaheads = [...k_syntax.contexts[s_state].lookaheads];
+			// k_context.lookaheads = [...k_syntax.contexts[s_state].lookaheads];
+			k_context.lookaheads = [{
+				lookaheads: s_state,
+			}];
 		}
 
 		// existential quantifier doesn't exist yet
@@ -706,7 +712,10 @@ const H_QUANTIFIERS = {
 			]);
 
 			// add lookaheads to context
-			k_context.lookaheads = [...k_syntax.contexts[s_state].lookaheads];
+			// k_context.lookaheads = [...k_syntax.contexts[s_state].lookaheads];
+			k_context.lookaheads = [{
+				lookaheads: s_state,
+			}];
 		}
 	},
 
@@ -731,7 +740,10 @@ const H_QUANTIFIERS = {
 			]);
 
 			// add lookaheads to context
-			k_context.lookaheads = [...k_syntax.contexts[s_state].lookaheads];
+			// k_context.lookaheads = [...k_syntax.contexts[s_state].lookaheads];
+			k_context.lookaheads = [{
+				lookaheads: s_state,
+			}];
 		}
 
 		// star quantifier doesn't exist yet
