@@ -252,7 +252,7 @@ module.exports = class SyntaxSource {
 						_SOMETHING: '\\w+|\\S',
 						_ANYTHING_LOOKAHEAD: '(?=[\\S\\s])',
 						_WHITESPACE: '\\s+',
-						_WORD_BOUNDARY: '[\\s{(\\[<*#$?^/="\'>\\])}]',
+						_WORD_BOUNDARY: '\\b',
 					}]),
 
 					...this.variables,
@@ -497,9 +497,23 @@ class Rule {
 		if(g_source.push) s_stack_mod = 'push';
 		else if(g_source.set) s_stack_mod = 'set';
 
-		if(s_stack_mod) {
-			let z_stack = g_source[s_stack_mod];
-			yield* (new Context(Array.isArray(z_stack)? z_stack: [z_stack], this.context.id+'/'+this.index)).subrules();
+		if(!s_stack_mod) return;
+
+		let z_action = g_source[s_stack_mod];
+
+		// array of states
+		if(Array.isArray(z_action)) {
+			// each state change in action
+			for(let z_state of z_action) {
+				// sequence of anonymous contexts
+				if(Array.isArray(z_state)) {
+					yield* (new Context(z_state, this.context.id+'/'+this.index, this.context.syntax)).subrules();
+				}
+				// flow mapping
+				else if('object' === typeof z_state) {
+					console.assert(`unexpected anonymous context struct in ${this.context.id}: '${z_state}'`);
+				}
+			}
 		}
 	}
 }

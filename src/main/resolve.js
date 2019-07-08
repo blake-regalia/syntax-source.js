@@ -118,7 +118,7 @@ const flatten_lookahead = (g_lookahead) => {
 	}
 	// composite
 	else if(g_lookahead.lookaheads) {
-		return `${s_regex}${g_lookahead.lookaheads.map(s => `{{${s}_LOOKAHEAD}}`).join('|')})`;
+		return `${s_regex}${g_lookahead.lookaheads.map(s => `{{${s.replace(/[?*^+]$/, '')}_LOOKAHEAD}}`).join('|')})`;
 	}
 	// something else
 	else {
@@ -291,12 +291,16 @@ const check_acyclic = (h_contexts, h_variables, h_states, a_path) => {
 };
 
 
-const resolve = (k_syntax) => {
+const resolve = (k_syntax, gc_resolve={}) => {
 	let {
 		lookaheads: h_lookaheads,
 		variables: h_variables,
 		contexts: h_contexts,
 	} = k_syntax;
+
+	let {
+		dangerous: b_dangerous,
+	} = gc_resolve;
 
 	// save output variables
 	let h_variables_out = k_syntax.output_variables = {};
@@ -478,6 +482,58 @@ const resolve = (k_syntax) => {
 		}
 	}
 
+	// check for unclosed paths
+	{
+		for(let [k_rule, k_context] of k_syntax.rules()) {
+			let g_source = k_rule.source;
+			let s_action = g_source.set? 'set': 'push';
+			if(g_source[s_action]) {
+				let a_change = g_source[s_action];
+				if('string' === typeof a_change) {
+					a_change = g_source[s_action] = [a_change];
+				}
+
+				for(let i_state=0, nl_states=a_change.length; i_state<nl_states; i_state++) {
+					let s_state = a_change[i_state];
+
+					if('included' === h_terminalities[s_state]) {
+						// safety correction disabled; issue warning
+						if(b_dangerous) {
+							console.warn(`context '${k_context.id}' state changes to unclosed context '${s_state}'`);
+						}
+						// auto fix
+						else {
+							console.warn(`context '${k_context.id}' state changes to unclosed context '${s_state}'; automatically fixed`);
+							let s_state_throw = a_change[i_state] = `${s_state}^`;
+
+							// state did not exist
+							if(!(s_state_throw in h_contexts)) {
+								// state not yet exists; add it
+								if(!(s_state_throw in k_syntax.contexts)) {
+									let k_context_throw = k_syntax.append(s_state_throw, [
+										{
+											include: s_state,
+										},
+										{
+											match: /* syntax: sublime-syntax.regex */ `'{{_SOMETHING}}'`.slice(1, -1),
+											scope: `invalid.illegal.token.expected.${s_state}.${k_syntax.ext}`,
+											pop: true,
+										},
+									]);
+
+									// add lookaheads to context
+									k_context_throw.lookaheads = [{
+										lookaheads: s_state,
+									}];
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 
 	// deduce which contexts are reachable
 	let as_reachable_ctxs;
@@ -637,48 +693,48 @@ const resolve = (k_syntax) => {
 	}
 
 	// determine necessity for failsafe context 'flush'
-	{
-		let k_context_main = k_syntax.contexts.main;
+	// {
+	// 	let k_context_main = k_syntax.contexts.main;
 
-		let g_rule_flush = {
-			match: '_SOMETHING',
-			scope: `invalid.illegal.unknown.flush.${k_syntax.ext}`,
-			pop: true,
-		};
+	// 	let g_rule_flush = {
+	// 		match: '_SOMETHING',
+	// 		scope: `invalid.illegal.unknown.flush.${k_syntax.ext}`,
+	// 		pop: true,
+	// 	};
 
-		let b_flush = false;
+	// 	let b_flush = false;
 
-		// each rule in context
-		for(let [k_rule] of k_context_main.subrules()) {
-			// rule source
-			let g_source = k_rule.source;
+	// 	// each rule in context
+	// 	for(let [k_rule] of k_context_main.subrules()) {
+	// 		// rule source
+	// 		let g_source = k_rule.source;
 
-			// state transition
-			let s_action = g_source.set? 'set': 'push';
-			if(g_source[s_action]) {
-				// match is lookahead
-				if(g_source.match && is_lookahead(g_source.match, h_variables_out)) {
-					let a_change = g_source[s_action];
-					if('string' === typeof a_change) {
-						a_change = [a_change];
-					}
+	// 		// state transition
+	// 		let s_action = g_source.set? 'set': 'push';
+	// 		if(g_source[s_action]) {
+	// 			// match is lookahead
+	// 			if(g_source.match && is_lookahead(g_source.match, h_variables_out)) {
+	// 				let a_change = g_source[s_action];
+	// 				if('string' === typeof a_change) {
+	// 					a_change = [a_change];
+	// 				}
 
-					// prepend flush state
-					g_source[s_action] = ['_FLUSH', ...a_change];
-					b_flush = true;
-				}
-			}
-		}
+	// 				// prepend flush state
+	// 				g_source[s_action] = ['_FLUSH', ...a_change];
+	// 				b_flush = true;
+	// 			}
+	// 		}
+	// 	}
 
-		// append flush context
-		if(b_flush) {
-			k_syntax.append('_FLUSH', [g_rule_flush]);
-		}
-		// append flush state to main context in case it includes
-		else {
-			k_context_main.add(g_rule_flush);
-		}
-	}
+	// 	// append flush context
+	// 	if(b_flush) {
+	// 		k_syntax.append('_FLUSH', [g_rule_flush]);
+	// 	}
+	// 	// append flush state to main context in case it includes
+	// 	else {
+	// 		k_context_main.add(g_rule_flush);
+	// 	}
+	// }
 
 	return k_syntax;
 };

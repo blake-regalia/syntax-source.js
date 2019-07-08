@@ -315,7 +315,7 @@ const create_mask = (k_context, g_source, h_plug={}) => {
 
 const maskable = (z_states, s_state_mask) => {
 	// no mask
-	if(!s_state_mask) return z_states;
+	if(!s_state_mask) return Array.isArray(z_states)? z_states: [z_states];
 
 	// string state
 	if('string' === typeof z_states) {
@@ -348,6 +348,13 @@ const H_ALIASES = {
 	// retry alias
 	retry(k_context, k_rule) {
 		return H_EXTENSIONS.throw(k_context, k_rule, false);
+	},
+
+	// continue alias
+	continue(k_context, k_rule) {
+		return k_context.replace(k_rule, {
+			match: '.',
+		});
 	},
 
 	// alone alias
@@ -404,9 +411,22 @@ const H_EXTENSIONS = {
 		k_context.lookaheads.push(
 			...normalize_dst(w_context_goto).slice(-1)
 				.map(s_context => ({
-					lookahead: s_context,
+					lookahead: s_context.replace(/[?*^+]$/, ''),
 				}))
 		);
+
+		// flush
+		let b_flush = k_rule.source.flush;
+		if(b_flush) {
+			// no flush context yes; append flush context
+			if(!('_FLUSH' in k_context.syntax.contexts)) {
+				k_context.syntax.append('_FLUSH', [{
+					match: '{{_SOMETHING}}',
+					scope: `invalid.illegal.unknown.flush.${k_context.syntax.ext}`,
+					pop: true,
+				}]);
+			}
+		}
 
 		// ref (and delete iff exists) mask
 		let s_state_mask = create_mask(k_context, k_rule.source);
@@ -414,7 +434,10 @@ const H_EXTENSIONS = {
 		// replace source rule from context; insert jump
 		return k_context.replace(k_rule, {
 			match: /* syntax: sublime-syntax.regex */ `'{{_ANYTHING_LOOKAHEAD}}'`.slice(1, -1),
-			['push' === s_modifiers? 'push': 'set']: maskable(w_context_goto, s_state_mask),
+			['push' === s_modifiers? 'push': 'set']: [
+				...(b_flush? ['_FLUSH']: []),
+				...maskable(w_context_goto, s_state_mask),
+			],
 		});
 	},
 
@@ -494,15 +517,18 @@ const H_EXTENSIONS = {
 				// cast to string
 				let s_case = z_case;
 
+				// remove quantifier for lookahead
+				let s_state = s_case.replace(/[?*^+]$/, '');
+
 				// insert rule
 				k_context.insert(i_rule++, {
-					match: /* syntax: sublime-syntax.regex */ `'{{${s_case}_LOOKAHEAD}}'`.slice(1, -1),
+					match: /* syntax: sublime-syntax.regex */ `'{{${s_state}_LOOKAHEAD}}'`.slice(1, -1),
 					[s_action]: maskable(s_case, s_state_mask),
 				});
 
 				// add lookahead to context
 				k_context.lookaheads.push({
-					lookahead: s_case,
+					lookahead: s_state,
 				});
 			}
 			// object
@@ -880,5 +906,7 @@ module.exports = (k_syntax, gc_transform={}) => {
 
 
 	// resolve
-	return resolve(k_syntax);
+	return resolve(k_syntax, {
+		dangerous: gc_transform.dangerous,
+	});
 };

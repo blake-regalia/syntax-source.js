@@ -219,7 +219,7 @@ contexts:
         2: punctuation.separator.key-value.yaml
       push: expect_bool
 
-    - match: (throw|bail|retry)(?=\s|#|$)
+    - match: (throw|bail|retry|continue)(?=\s|#|$)
       scope: string.unquoted.plain.out.yaml keyword.control.exit.syntax-source
 
     - match: (alone)(?=\s|#|$)
