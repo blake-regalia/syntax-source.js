@@ -249,6 +249,10 @@ const check_acyclic = (h_contexts, h_variables, h_states, a_path) => {
 
 	let k_context = h_contexts[si_context];
 
+	if(!k_context) {
+		throw new Error(`State transition exists yet no context found for '${si_context}'`);
+	}
+
 	let as_transitions = h_states[si_context] = new Set();
 
 	// each rule in context
