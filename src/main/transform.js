@@ -472,7 +472,7 @@ const H_EXTENSIONS = {
 
 		// no action
 		if(!s_action) {
-			throw new Error(`mask used on '${k_context.id}' context but no stack actions found in rule`);
+			throw new Error(`mask used on '${k_context.id}' context but no stack actions found in rule. consider using 'add.front' if you are trying to attach a scope to a 'throw' rule`);
 		}
 
 		// coerce to array
