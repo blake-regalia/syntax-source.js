@@ -372,7 +372,7 @@ const H_EXTENSIONS = {
 	// array-style of above
 	words(k_context, k_rule, z_words, s_tag='auto') {
 		// normalize
-		let a_words = 'string' === typeof z_words? [z_words]: z_words;
+		let a_words = ('string' === typeof z_words? [z_words]: z_words).map(w => w+'');
 
 		// remove source rule from context
 		let i_rule = k_context.drop(k_rule);
