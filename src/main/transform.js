@@ -408,12 +408,34 @@ const H_EXTENSIONS = {
 		}
 
 		// add lookahead from top state to context
-		k_context.lookaheads.push(
-			...normalize_dst(w_context_goto).slice(-1)
-				.map(s_context => ({
-					lookahead: s_context.replace(/[?*^+]$/, ''),
-				}))
-		);
+		let a_lookaheads = k_context.lookaheads;
+		let a_gotos = normalize_dst(w_context_goto);
+		for(let i_top=a_gotos.length-1; i_top>=0; i_top--) {
+			let s_context = a_gotos[i_top];
+
+			// push lookahead
+			a_lookaheads.push({
+				lookahead: s_context.replace(/[?*^+]$/, ''),
+			});
+
+			// optional context
+			if(s_context.endsWith('?')) {
+				continue;
+			}
+
+			// not optional
+			break;
+		}
+
+		// // push lookaheads to context in reverse (from top of stack onwards)
+		// k_context.lookaheads.push(...a_lookaheads);
+
+		// k_context.lookaheads.push(
+		// 	...a_gotos.slice(-1)
+		// 		.map(s_context => ({
+		// 			lookahead: s_context.replace(/[?*^+]$/, ''),
+		// 		}))
+		// );
 
 		// flush
 		let b_flush = k_rule.source.flush;
