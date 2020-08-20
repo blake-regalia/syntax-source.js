@@ -107,6 +107,15 @@ Equivalent to:
  - include: _OTHERWISE_POP
 ```
 
+<a name="alias.continue" />
+
+#### `continue`
+Match a single character at a time to keep it in this context.
+Equivalent to:
+```yaml
+ - match: '.'
+```
+
 <a name="alias.throw" />
 
 #### `throw`
@@ -371,3 +380,7 @@ Generates a rule that matches either the opening of closing of the given `SYMBOL
  - `dirk` - `"` `"` - `punctuation.definition.string.SIDE.SUBSCOPE.SYNTAX`
 
 
+<a name="extension.lookaheads" />
+
+#### `lookahead[s]` : `string | array<string>`
+Override the generated lookahead regular expression.
