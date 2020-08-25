@@ -1,6 +1,6 @@
 {
   "name": "syntax-source",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "",
   "bin": "src/main/cli.js",
   "main": "src/main/api.js",
