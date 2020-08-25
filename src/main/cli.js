@@ -78,49 +78,46 @@ yargs
 	})
 
 	// build
-	.command('build <source>', 'Build a syntax highlighting definition given a source file', async(y_yargs) => {
-		const g_argv = y_yargs
-			.positional('source', {
-				describe: 'path to the .syntax-source file',
-				type: 'string',
-			})
-			.option('exporter', {
-				alias: 'e',
-				describe: `which exporter to use; [e.g., 'sublime']`,
-			})
-			.argv;
+	.command('build <source>', 'Build a syntax highlighting definition given a source file', (y_yargs) => y_yargs
+		.positional('source', {
+			describe: 'path to the .syntax-source file',
+			type: 'string',
+		})
+		.option('exporter', {
+			alias: 'e',
+			describe: `which exporter to use; [e.g., 'sublime']`,
+		}), async(g_argv) => {
+			let s_exporter = g_argv.exporter || 'sublime';
 
-		let s_exporter = g_argv.exporter || 'sublime';
+			switch(s_exporter) {
+				case 'sublime':
+				case 'sublime-syntax':
+				case 'sublime_syntax': {
+					break;
+				}
 
-		switch(s_exporter) {
-			case 'sublime':
-			case 'sublime-syntax':
-			case 'sublime_syntax': {
-				break;
+				default: {
+					console.error(`Unknown exporter '${s_exporter}'`);
+					process.exit(1);
+				}
 			}
 
-			default: {
-				console.error(`Unknown exporter '${s_exporter}'`);
+			const export_syntax = syntax_source.export[s_exporter];
+
+			try {
+				// load syntax source from a path string
+				let k_syntax = await syntax_source.transform({
+					path: g_argv.source,
+					extensions: {},
+				});
+
+				// write to stdout
+				process.stdout.write(export_syntax(k_syntax));
+			}
+			catch(e_compile) {
+				console.error(e_compile.stack);
 				process.exit(1);
 			}
-		}
-
-		const export_syntax = syntax_source.export[s_exporter];
-
-		try {
-			// load syntax source from a path string
-			let k_syntax = await syntax_source.transform({
-				path: g_argv.source,
-				extensions: {},
-			});
-
-			// write to stdout
-			process.stdout.write(export_syntax(k_syntax));
-		}
-		catch(e_compile) {
-			console.error(e_compile.stack);
-			process.exit(1);
-		}
-	})
+		})
 	.help()
 	.argv;
