@@ -87,17 +87,19 @@ yargs
 			alias: 'e',
 			describe: `which exporter to use; [e.g., 'sublime']`,
 		}), async(g_argv) => {
-			let s_exporter = g_argv.exporter || 'sublime';
+			const s_selector = g_argv.exporter || 'sublime';
+			let s_exporter;
 
-			switch(s_exporter) {
+			switch(s_selector) {
 				case 'sublime':
 				case 'sublime-syntax':
 				case 'sublime_syntax': {
+					s_exporter = 'sublime-syntax'
 					break;
 				}
 
 				default: {
-					console.error(`Unknown exporter '${s_exporter}'`);
+					console.error(`Unknown exporter '${s_selector}'`);
 					process.exit(1);
 				}
 			}
