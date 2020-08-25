@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "js-yaml": "^3.14.0",
-    "plist": "^3.0.1"
+    "plist": "^3.0.1",
+    "yargs": "^15.4.1"
   }
 }
